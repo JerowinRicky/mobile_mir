@@ -116,7 +116,8 @@ export function useWebRTC({ sessionId, token, turnConfig, onDisconnected }: UseW
     });
 
     // Connect WebSocket signaling
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8000';
+    const defaultWsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+    const wsUrl = import.meta.env.VITE_WS_URL || defaultWsUrl;
     signaling.connect(wsUrl, sessionId, token).catch((err) => {
       console.error('[WebRTC] Failed to connect signaling socket:', err);
     });

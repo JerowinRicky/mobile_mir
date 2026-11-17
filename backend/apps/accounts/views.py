@@ -9,6 +9,7 @@ from apps.accounts.models import User
 from apps.audit.utils import log_audit_event
 
 class RegisterView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -34,6 +35,7 @@ class RegisterView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 class LoginView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -59,6 +61,7 @@ class LoginView(APIView):
         }, status=status.HTTP_200_OK)
 
 class RefreshTokenView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -94,6 +97,7 @@ class CurrentUserView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 class HealthCheckView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):

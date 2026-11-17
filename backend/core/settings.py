@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     # Third-party
     'rest_framework',
     'channels',
+    'corsheaders',
 
     # Local apps
     'apps.accounts',
@@ -35,6 +36,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -151,3 +153,27 @@ COTURN_CREDENTIAL_TTL = int(os.environ.get('COTURN_CREDENTIAL_TTL', 3600))
 JWT_SECRET = os.environ.get('JWT_SECRET', SECRET_KEY)
 JWT_ACCESS_TTL = int(os.environ.get('JWT_ACCESS_TTL', 900)) # 15 minutes
 JWT_REFRESH_TTL = int(os.environ.get('JWT_REFRESH_TTL', 86400 * 7)) # 7 days
+
+# CORS & CSRF Settings for Web Client
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:80',
+    'https://localhost:443',
+]

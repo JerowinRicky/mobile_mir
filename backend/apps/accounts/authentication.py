@@ -42,6 +42,9 @@ def verify_token(token: str, expected_type: str = 'access') -> dict:
         raise AuthenticationFailed(f'Invalid token: {str(e)}')
 
 class JWTAuthentication(BaseAuthentication):
+    def authenticate_header(self, request):
+        return 'Bearer'
+
     def authenticate(self, request):
         auth_header = get_authorization_header(request).split()
         if not auth_header or auth_header[0].lower() != b'bearer':

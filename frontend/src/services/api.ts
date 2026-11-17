@@ -14,7 +14,8 @@ class ApiService {
       ...(options.headers as Record<string, string>),
     };
 
-    if (token) {
+    const isPublicAuthEndpoint = endpoint.includes('/auth/login') || endpoint.includes('/auth/register') || endpoint.includes('/auth/refresh');
+    if (token && !isPublicAuthEndpoint) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
@@ -23,7 +24,7 @@ class ApiService {
       headers,
     });
 
-    if (response.status === 401 && !endpoint.includes('/auth/login/')) {
+    if (response.status === 401 && !isPublicAuthEndpoint) {
       // Token might be expired, attempt refresh
       const refreshed = await this.refreshToken();
       if (refreshed) {
@@ -68,6 +69,8 @@ class ApiService {
 
   // Auth endpoints
   async register(email: string, password: string): Promise<{ user: User; access_token: string; refresh_token: string }> {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     const data = await this.request<{ user: User; access_token: string; refresh_token: string }>('/auth/register/', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
@@ -78,6 +81,8 @@ class ApiService {
   }
 
   async login(email: string, password: string): Promise<{ user: User; access_token: string; refresh_token: string }> {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     const data = await this.request<{ user: User; access_token: string; refresh_token: string }>('/auth/login/', {
       method: 'POST',
       body: JSON.stringify({ email, password }),

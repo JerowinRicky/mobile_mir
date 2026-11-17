@@ -77,7 +77,7 @@ class AccountsAuthTestCase(TestCase):
 
     def test_me_endpoint_requires_auth(self):
         unauth_res = self.client.get(self.me_url)
-        self.assertEqual(unauth_res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(unauth_res.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
 
         user = User.objects.create_user(email='alice@example.com', password='Password123!')
         token = generate_access_token(user)

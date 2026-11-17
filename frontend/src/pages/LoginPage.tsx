@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Smartphone, Lock, Mail, ArrowRight, ShieldAlert } from 'lucide-react';
+import { Smartphone, Lock, Mail, ArrowRight, ShieldAlert, UserPlus, LogIn } from 'lucide-react';
 import { api } from '../services/api';
 import { User } from '../types';
 
@@ -8,6 +8,7 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
+  const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -19,13 +20,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setIsLoading(true);
 
     try {
-      const response = await api.login(email, password);
-      onLoginSuccess(response.user);
+      if (isRegistering) {
+        const response = await api.register(email, password);
+        onLoginSuccess(response.user);
+      } else {
+        const response = await api.login(email, password);
+        onLoginSuccess(response.user);
+      }
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);
       } else {
-        setError('Login failed. Please check your credentials.');
+        setError(isRegistering ? 'Registration failed. Please try again.' : 'Login failed. Please check your credentials.');
       }
     } finally {
       setIsLoading(false);
@@ -35,12 +41,38 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl">
-        <div className="flex flex-col items-center mb-8 text-center">
+        <div className="flex flex-col items-center mb-6 text-center">
           <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white mb-3 shadow-lg shadow-blue-500/30">
             <Smartphone className="w-6 h-6" />
           </div>
           <h2 className="text-2xl font-bold text-white tracking-tight">Antigravity Remote</h2>
-          <p className="text-sm text-slate-400 mt-1">Authenticate to access your Android devices</p>
+          <p className="text-sm text-slate-400 mt-1">
+            {isRegistering ? 'Create an account to manage your Android devices' : 'Authenticate to access your Android devices'}
+          </p>
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="flex bg-slate-950/60 p-1 rounded-xl mb-6 border border-slate-800">
+          <button
+            type="button"
+            onClick={() => { setIsRegistering(false); setError(null); }}
+            className={`flex-1 flex items-center justify-center space-x-2 py-2 rounded-lg text-xs font-semibold transition ${
+              !isRegistering ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>Sign In</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setIsRegistering(true); setError(null); }}
+            className={`flex-1 flex items-center justify-center space-x-2 py-2 rounded-lg text-xs font-semibold transition ${
+              isRegistering ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>Create Account</span>
+          </button>
         </div>
 
         {error && (
@@ -91,15 +123,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 rounded-xl flex items-center justify-center space-x-2 transition disabled:opacity-50 shadow-lg shadow-blue-600/30"
           >
             {isLoading ? (
-              <span>Authenticating...</span>
+              <span>Processing...</span>
             ) : (
               <>
-                <span>Sign In to Dashboard</span>
+                <span>{isRegistering ? 'Create Account & Sign In' : 'Sign In to Dashboard'}</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
           </button>
         </form>
+
+        <div className="mt-6 text-center">
+          <button
+            type="button"
+            onClick={() => { setIsRegistering(!isRegistering); setError(null); }}
+            className="text-xs text-slate-400 hover:text-blue-400 transition"
+          >
+            {isRegistering
+              ? 'Already have an account? Sign in'
+              : "Don't have an account? Create one"}
+          </button>
+        </div>
       </div>
     </div>
   );

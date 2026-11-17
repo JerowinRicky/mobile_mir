@@ -67,7 +67,17 @@ class ApiService {
   }
 
   // Auth endpoints
-  async login(email: string, password: string):Promise<{ user: User; access_token: string; refresh_token: string }> {
+  async register(email: string, password: string): Promise<{ user: User; access_token: string; refresh_token: string }> {
+    const data = await this.request<{ user: User; access_token: string; refresh_token: string }>('/auth/register/', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    localStorage.setItem('access_token', data.access_token);
+    localStorage.setItem('refresh_token', data.refresh_token);
+    return data;
+  }
+
+  async login(email: string, password: string): Promise<{ user: User; access_token: string; refresh_token: string }> {
     const data = await this.request<{ user: User; access_token: string; refresh_token: string }>('/auth/login/', {
       method: 'POST',
       body: JSON.stringify({ email, password }),

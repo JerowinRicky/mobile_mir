@@ -228,3 +228,16 @@ fun DeviceRegistrationScreen(
         }
     }
 }
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = label, color = Color.Gray, fontSize = 14.sp)
+        Text(text = value, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+    }
+}
+

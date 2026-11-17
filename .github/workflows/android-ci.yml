@@ -27,15 +27,16 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.4'
 
-      - name: Ensure Executable Permissions & Generate Wrapper JAR
+      - name: Ensure Executable Permissions & Generate Wrapper
         working-directory: ./android
         run: |
           chmod +x gradlew || true
@@ -62,23 +63,12 @@ jobs:
           path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 14
 
-      - name: Build Release Bundle (Unsigned/CI Default)
+      - name: Build Release APK
         working-directory: ./android
         run: |
-          # Generate fallback keystore for CI release build verification if not provided in secrets
-          if [ ! -f release.keystore ]; then
-            keytool -genkeypair -v -keystore release.keystore \
-              -alias remotedevice -keyalg RSA -keysize 2048 -validity 100 \
-              -storepass dummy_store_pass -keypass dummy_key_pass \
-              -dname "CN=CI Build, O=MobileMir, C=US"
-          fi
-          RELEASE_KEYSTORE_PATH="release.keystore" \
-          RELEASE_KEYSTORE_PASSWORD="dummy_store_pass" \
-          RELEASE_KEY_ALIAS="remotedevice" \
-          RELEASE_KEY_PASSWORD="dummy_key_pass" \
-          ./gradlew assembleRelease --no-daemon --stacktrace || echo "Release build step completed"
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Upload Release APK Artifact (if built)
+      - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:

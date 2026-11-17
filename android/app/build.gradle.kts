@@ -22,7 +22,8 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file(System.getenv("RELEASE_KEYSTORE_PATH") ?: "release.keystore")
+            val keystorePath = System.getenv("RELEASE_KEYSTORE_PATH") ?: "release.keystore"
+            storeFile = file(keystorePath)
             storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD") ?: "dummy_store_pass"
             keyAlias = System.getenv("RELEASE_KEY_ALIAS") ?: "remotedevice"
             keyPassword = System.getenv("RELEASE_KEY_PASSWORD") ?: "dummy_key_pass"
@@ -37,7 +38,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            val keystorePath = System.getenv("RELEASE_KEYSTORE_PATH") ?: "release.keystore"
+            if (file(keystorePath).exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
         debug {
             isMinifyEnabled = false

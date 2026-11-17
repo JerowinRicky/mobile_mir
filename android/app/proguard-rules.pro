@@ -20,11 +20,23 @@
 -dontwarn androidx.compose.animation.**
 -keepclassmembers class * extends androidx.compose.ui.Modifier { *; }
 
-# --- AndroidX Security Crypto & Keystore ---
+# --- AndroidX Security Crypto, Keystore & Google Tink ---
 -keep class androidx.security.crypto.** { *; }
 -dontwarn androidx.security.crypto.**
+-dontwarn com.google.crypto.tink.**
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn javax.annotation.**
+-dontwarn org.checkerframework.**
 -keep class java.security.** { *; }
 -keep class javax.crypto.** { *; }
+
+# --- OkHttp3 & Okio Networking ---
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn org.conscrypt.**
+-dontwarn org.bouncycastle.**
+-dontwarn org.openjsse.**
+-keep class okhttp3.** { *; }
 
 # --- Kotlin Coroutines ---
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory { *; }
@@ -44,6 +56,7 @@
 -keep class com.antigravity.remotedevice.service.InputDispatcher { *; }
 
 # --- WebRTC Signaling Client ---
+-keep class com.antigravity.remotedevice.data.remote.** { *; }
 -keep class com.antigravity.remotedevice.data.webrtc.** { *; }
 
 # --- Suppress General Obfuscation Warnings ---

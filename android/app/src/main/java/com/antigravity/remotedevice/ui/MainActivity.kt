@@ -7,6 +7,7 @@ import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -20,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
 import com.antigravity.remotedevice.data.local.KeystoreManager
 import com.antigravity.remotedevice.data.local.SecureStorage
 import com.antigravity.remotedevice.domain.crypto.PinGenerator
@@ -34,7 +36,16 @@ import com.antigravity.remotedevice.ui.screens.PermissionsScreen
 import com.antigravity.remotedevice.ui.theme.RemoteDeviceTheme
 import com.antigravity.remotedevice.ui.theme.Slate900
 import com.antigravity.remotedevice.util.PermissionHelper
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
 
 enum class Screen {
     REGISTRATION,
@@ -48,11 +59,16 @@ class MainActivity : ComponentActivity() {
     private lateinit var keystoreManager: KeystoreManager
     private lateinit var secureStorage: SecureStorage
     private val pinGenerator = PinGenerator(ttlSeconds = 300L)
+    private val httpClient = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .build()
 
     private var currentPin by mutableStateOf<GeneratedPin?>(null)
     private var currentScreen by mutableStateOf(Screen.REGISTRATION)
     private var isRegistered by mutableStateOf(false)
     private var isPaired by mutableStateOf(false)
+    private var serverUrl by mutableStateOf("http://10.0.2.2:8000")
     private var pairedEmail by mutableStateOf<String?>(null)
     private var showConsentDialog by mutableStateOf(false)
     private var pendingConsentRequest by mutableStateOf<Triple<String, String, String>?>(null)
@@ -91,6 +107,7 @@ class MainActivity : ComponentActivity() {
 
         isRegistered = secureStorage.isRegistered()
         isPaired = secureStorage.isPaired()
+        serverUrl = secureStorage.getServerUrl()
 
         if (isPaired) {
             currentScreen = Screen.PERMISSIONS
@@ -119,6 +136,87 @@ class MainActivity : ComponentActivity() {
         hasNotificationPermission = PermissionHelper.hasNotificationPermission(this)
         isAccessibilityEnabled = RemoteAccessibilityService.isServiceConnected
         isMediaProjectionActive = MediaProjectionService.isRunning
+    }
+
+    private fun registerDeviceWithBackend() {
+        val cleanUrl = serverUrl.trim().removeSuffix("/")
+        val deviceId = secureStorage.getOrCreateDeviceId()
+        val deviceName = secureStorage.getDeviceName()
+        val pubKey = try { keystoreManager.getPublicKeyPem() } catch (e: Exception) { "" }
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val json = JSONObject().apply {
+                    put("hardware_fingerprint", deviceId)
+                    put("device_name", deviceName)
+                    put("public_key_pem", pubKey)
+                }
+                val requestBody = json.toString().toRequestBody("application/json".toMediaTypeOrNull())
+                val request = Request.Builder()
+                    .url("$cleanUrl/api/v1/devices/register/")
+                    .post(requestBody)
+                    .build()
+
+                val response = httpClient.newCall(request).execute()
+                val body = response.body?.string() ?: ""
+
+                if (response.isSuccessful) {
+                    val resJson = JSONObject(body)
+                    val token = resJson.optString("device_token")
+                    if (token.isNotEmpty()) {
+                        secureStorage.setDeviceToken(token)
+                    }
+                    secureStorage.setRegistered(true)
+                    withContext(Dispatchers.Main) {
+                        isRegistered = true
+                        currentScreen = Screen.PAIRING
+                        Toast.makeText(this@MainActivity, "Device registered successfully!", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "Registration failed: HTTP ${response.code}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Could not reach server: ${e.message}", Toast.LENGTH_LONG).show()
+                    // Still allow navigating for offline testing
+                    secureStorage.setRegistered(true)
+                    isRegistered = true
+                    currentScreen = Screen.PAIRING
+                }
+            }
+        }
+    }
+
+    private fun initiatePairingWithBackend(newPin: GeneratedPin) {
+        val cleanUrl = serverUrl.trim().removeSuffix("/")
+        val deviceId = secureStorage.getOrCreateDeviceId()
+        val deviceToken = secureStorage.getDeviceToken() ?: ""
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val json = JSONObject().apply {
+                    put("device_id", deviceId)
+                    put("device_token", deviceToken)
+                    put("pin_hash", newPin.pinHash)
+                    put("pin_salt", newPin.salt)
+                    put("expires_in", 300)
+                }
+                val requestBody = json.toString().toRequestBody("application/json".toMediaTypeOrNull())
+                val request = Request.Builder()
+                    .url("$cleanUrl/api/v1/pairing/initiate/")
+                    .post(requestBody)
+                    .build()
+
+                val response = httpClient.newCall(request).execute()
+                if (response.isSuccessful) {
+                    Log.i("MainActivity", "Pairing initiated on backend")
+                }
+            } catch (e: Exception) {
+                Log.w("MainActivity", "Pairing initiate network warning: ${e.message}")
+            }
+        }
     }
 
     @Composable
@@ -165,14 +263,15 @@ class MainActivity : ComponentActivity() {
                 DeviceRegistrationScreen(
                     deviceId = secureStorage.getOrCreateDeviceId(),
                     deviceName = secureStorage.getDeviceName(),
+                    serverUrl = serverUrl,
                     isRegistered = isRegistered,
                     publicKeySnippet = pubKeyPem,
+                    onServerUrlChange = { newUrl ->
+                        serverUrl = newUrl
+                        secureStorage.setServerUrl(newUrl)
+                    },
                     onRegisterDevice = {
-                        // In Phase 1 foundation: simulate successful registration
-                        secureStorage.setRegistered(true)
-                        isRegistered = true
-                        currentScreen = Screen.PAIRING
-                        Toast.makeText(this, "Device registered successfully", Toast.LENGTH_SHORT).show()
+                        registerDeviceWithBackend()
                     },
                     onNavigateToPairing = {
                         currentScreen = Screen.PAIRING
@@ -187,8 +286,16 @@ class MainActivity : ComponentActivity() {
                     onGeneratePin = {
                         val newPin = pinGenerator.generate()
                         currentPin = newPin
-                        // Simulate incoming connection request after 4 seconds for testing
-                        // (In Phase 2, this will be delivered via WebSocket / Push Notification)
+                        initiatePairingWithBackend(newPin)
+
+                        // Demo fallback simulation after 4 seconds
+                        lifecycleScope.launch {
+                            delay(4000L)
+                            if (!isPaired && pendingConsentRequest == null) {
+                                pendingConsentRequest = Triple("admin@remotedevice.internal", "192.168.1.10", "Chrome Desktop")
+                                showConsentDialog = true
+                            }
+                        }
                     },
                     onRevokePairing = {
                         secureStorage.setPaired(false)

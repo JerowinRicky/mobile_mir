@@ -1,0 +1,275 @@
+{
+  "info": {
+    "name": "Secure Android Remote Control Platform API",
+    "description": "Postman Collection for authentication, device registration, ephemeral PIN pairing, WebRTC session management, and WebSocket signaling.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "ws_url",
+      "value": "ws://127.0.0.1:8000/ws/signaling/",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "device_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "device_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "pairing_session_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "session_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@remotedevice.internal\",\n  \"password\": \"SuperSecure2026!\",\n  \"first_name\": \"Admin\",\n  \"last_name\": \"User\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/register/" }
+          }
+        },
+        {
+          "name": "Login User",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@remotedevice.internal\",\n  \"password\": \"SuperSecure2026!\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/login/" }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/refresh/" }
+          }
+        },
+        {
+          "name": "Get Current User Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/auth/me/" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Devices",
+      "item": [
+        {
+          "name": "Register Device (Android)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hardware_fingerprint\": \"pixel8-hw-009988\",\n  \"device_name\": \"Google Pixel 8 Pro\",\n  \"device_model\": \"Pixel 8 Pro\",\n  \"android_version\": \"14.0\",\n  \"app_version\": \"1.0.0\",\n  \"public_key_pem\": \"-----BEGIN PUBLIC KEY-----\\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEABC...\\n-----END PUBLIC KEY-----\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/devices/register/" }
+          }
+        },
+        {
+          "name": "List Paired Devices",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/devices/" }
+          }
+        },
+        {
+          "name": "Revoke Device",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/devices/{{device_id}}/revoke/" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Ephemeral PIN Pairing",
+      "item": [
+        {
+          "name": "Initiate Pairing (Android)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device_id\": \"{{device_id}}\",\n  \"device_token\": \"{{device_token}}\",\n  \"pin_hash\": \"c0a801...\",\n  \"pin_salt\": \"9a8b7c6d5e4f...\",\n  \"expires_in\": 300\n}"
+            },
+            "url": { "raw": "{{base_url}}/pairing/initiate/" }
+          }
+        },
+        {
+          "name": "Verify PIN (Web Client)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"849-201\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/pairing/verify/" }
+          }
+        },
+        {
+          "name": "Approve Pairing (Android Physical Consent)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pairing_session_id\": \"{{pairing_session_id}}\",\n  \"device_token\": \"{{device_token}}\",\n  \"approved\": true\n}"
+            },
+            "url": { "raw": "{{base_url}}/pairing/approve/" }
+          }
+        },
+        {
+          "name": "Check Pairing Status (Web Client)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/pairing/status/{{pairing_session_id}}/" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. WebRTC Sessions & TURN",
+      "item": [
+        {
+          "name": "Create Remote Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device_id\": \"{{device_id}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/sessions/create/" }
+          }
+        },
+        {
+          "name": "Get TURN Credentials",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/sessions/turn-credentials/" }
+          }
+        },
+        {
+          "name": "Terminate Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"User Disconnect\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/sessions/{{session_id}}/terminate/" }
+          }
+        },
+        {
+          "name": "Session History",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/sessions/history/" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Audit Logs",
+      "item": [
+        {
+          "name": "List Security Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/audit/logs/" }
+          }
+        }
+      ]
+    }
+  ]
+}

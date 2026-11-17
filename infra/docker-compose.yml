@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  coturn:
+    image: coturn/coturn:4.6.2
+    container_name: remotedevice-coturn
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    command: ["-c", "/etc/coturn/turnserver.conf"]
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: remotedevice-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-remotedevice_db}
+      POSTGRES_USER: ${DB_USER:-remotedevice_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secure_postgres_password_2026}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-remotedevice_user} -d ${DB_NAME:-remotedevice_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal_net
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: remotedevice-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-secure_redis_password_2026}"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-secure_redis_password_2026}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal_net
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: remotedevice-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-prod-secret-key-remote-android-webrtc-platform-2026}
+      DEBUG: "False"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,backend,nginx}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-remotedevice_db}
+      DB_USER: ${DB_USER:-remotedevice_user}
+      DB_PASSWORD: ${DB_PASSWORD:-secure_postgres_password_2026}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-secure_redis_password_2026}
+      COTURN_STUN_SERVER: ${COTURN_STUN_SERVER:-stun:stun.l.google.com:19302}
+      COTURN_TURN_SERVER: ${COTURN_TURN_SERVER:-turn:127.0.0.1:3478}
+      COTURN_AUTH_SECRET: ${COTURN_AUTH_SECRET:-antigravity-coturn-static-secret-2026}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-jwt-ecdsa-or-hs256-production-secret-2026}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/auth/health/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - internal_net
+
+  gateway:
+    image: nginx:1.25-alpine
+    container_name: remotedevice-gateway
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ../frontend/dist:/usr/share/nginx/html:ro
+    networks:
+      - internal_net
+
+volumes:
+  pgdata:
+  redisdata:
+
+networks:
+  internal_net:
+    driver: bridge

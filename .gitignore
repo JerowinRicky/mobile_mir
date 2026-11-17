@@ -1,0 +1,45 @@
+# Environment & Secrets
+.env
+*.env
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+
+# Python & Django
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# Node & Frontend
+node_modules/
+dist/
+build/
+.cache/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Android & Gradle
+.gradle/
+build/
+app/build/
+*.keystore
+*.jks
+local.properties
+.cxx/
+captures/
+
+# IDE & Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

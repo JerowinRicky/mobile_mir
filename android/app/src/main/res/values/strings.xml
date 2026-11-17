@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Remote Device</string>
+    <string name="channel_name">Remote Control Service</string>
+    <string name="channel_description">Active remote screen casting and input session</string>
+    <string name="notification_title">Remote Session Active</string>
+    <string name="notification_text">Your screen is being viewed and controlled remotely.</string>
+    <string name="action_disconnect">Disconnect</string>
+
+    <!-- Accessibility Service Strings -->
+    <string name="accessibility_service_label">Remote Control Input Service</string>
+    <string name="accessibility_service_description">Enables authorized remote touch gestures, swipes, and navigation controls from your paired web dashboard.</string>
+</resources>

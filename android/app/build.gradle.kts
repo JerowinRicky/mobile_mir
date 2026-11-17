@@ -86,8 +86,9 @@ dependencies {
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
 
-    // WebRTC
+    // WebRTC & Networking
     implementation(libs.stream.webrtc.android)
+    implementation(libs.okhttp)
 
     // Unit Testing
     testImplementation(libs.junit)

@@ -58,8 +58,16 @@ class PairingTestCase(TestCase):
         self.assertEqual(verify_res.status_code, status.HTTP_200_OK)
         self.assertEqual(verify_res.data['status'], PairingStatus.AWAITING_APPROVAL)
 
-        # 3. Android phone user physically approves
+        # 2.1 Android phone polls device status and sees awaiting approval
         self.client.credentials() # Clear bearer auth to simulate device call
+        device_status_res = self.client.get(
+            f'/api/v1/pairing/device-status/{session_id}/?device_token={self.raw_device_token}'
+        )
+        self.assertEqual(device_status_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(device_status_res.data['status'], PairingStatus.AWAITING_APPROVAL)
+        self.assertEqual(device_status_res.data['target_user_email'], self.user.email)
+
+        # 3. Android phone user physically approves
         approve_res = self.client.post(self.approve_url, {
             'pairing_session_id': session_id,
             'device_token': self.raw_device_token,

@@ -37,7 +37,9 @@ import com.antigravity.remotedevice.ui.theme.RemoteDeviceTheme
 import com.antigravity.remotedevice.ui.theme.Slate900
 import com.antigravity.remotedevice.util.PermissionHelper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -72,6 +74,8 @@ class MainActivity : ComponentActivity() {
     private var pairedEmail by mutableStateOf<String?>(null)
     private var showConsentDialog by mutableStateOf(false)
     private var pendingConsentRequest by mutableStateOf<Triple<String, String, String>?>(null)
+    private var activePairingSessionId: String? = null
+    private var pairingPollJob: Job? = null
 
     // Permissions state
     private var hasNotificationPermission by mutableStateOf(false)
@@ -83,9 +87,15 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-            MediaProjectionService.startService(this, result.resultCode, result.data!!)
-            isMediaProjectionActive = true
-            Toast.makeText(this, "Screen capture consent granted", Toast.LENGTH_SHORT).show()
+            try {
+                MediaProjectionService.startService(this, result.resultCode, result.data!!)
+                isMediaProjectionActive = true
+                Toast.makeText(this, "Screen capture consent granted", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                isMediaProjectionActive = false
+                Log.e("MainActivity", "Failed to start MediaProjectionService", e)
+                Toast.makeText(this, "Failed to start screen capture: ${e.message}", Toast.LENGTH_LONG).show()
+            }
         } else {
             isMediaProjectionActive = false
             Toast.makeText(this, "Screen capture consent denied", Toast.LENGTH_SHORT).show()
@@ -194,6 +204,7 @@ class MainActivity : ComponentActivity() {
         val deviceId = secureStorage.getOrCreateDeviceId()
         val deviceToken = secureStorage.getDeviceToken() ?: ""
 
+        pairingPollJob?.cancel()
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val json = JSONObject().apply {
@@ -211,10 +222,74 @@ class MainActivity : ComponentActivity() {
 
                 val response = httpClient.newCall(request).execute()
                 if (response.isSuccessful) {
-                    Log.i("MainActivity", "Pairing initiated on backend")
+                    val respBody = response.body?.string() ?: ""
+                    val respJson = JSONObject(respBody)
+                    val sessionId = respJson.optString("pairing_session_id")
+                    if (sessionId.isNotEmpty()) {
+                        activePairingSessionId = sessionId
+                        Log.i("MainActivity", "Pairing initiated with session ID: $sessionId")
+                        startPairingStatusPolling(cleanUrl, sessionId, deviceToken)
+                    }
                 }
             } catch (e: Exception) {
                 Log.w("MainActivity", "Pairing initiate network warning: ${e.message}")
+            }
+        }
+    }
+
+    private fun startPairingStatusPolling(cleanUrl: String, sessionId: String, deviceToken: String) {
+        pairingPollJob?.cancel()
+        pairingPollJob = lifecycleScope.launch(Dispatchers.IO) {
+            while (isActive && currentPin != null && !currentPin!!.isExpired && !isPaired) {
+                try {
+                    val request = Request.Builder()
+                        .url("$cleanUrl/api/v1/pairing/device-status/$sessionId/?device_token=$deviceToken")
+                        .get()
+                        .build()
+                    val response = httpClient.newCall(request).execute()
+                    if (response.isSuccessful) {
+                        val body = response.body?.string() ?: ""
+                        val json = JSONObject(body)
+                        val status = json.optString("status")
+                        if (status == "AWAITING_APPROVAL") {
+                            val email = json.optString("target_user_email", "Authorized Web User")
+                            val ip = json.optString("client_ip", "Web Client")
+                            val ua = json.optString("client_user_agent", "Browser")
+                            withContext(Dispatchers.Main) {
+                                pendingConsentRequest = Triple(email, ip, ua)
+                                showConsentDialog = true
+                            }
+                            break
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.d("MainActivity", "Polling device pairing status: ${e.message}")
+                }
+                delay(1500L)
+            }
+        }
+    }
+
+    private fun approvePairingWithBackend(sessionId: String, approved: Boolean) {
+        val cleanUrl = serverUrl.trim().removeSuffix("/")
+        val deviceToken = secureStorage.getDeviceToken() ?: ""
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val json = JSONObject().apply {
+                    put("pairing_session_id", sessionId)
+                    put("device_token", deviceToken)
+                    put("approved", approved)
+                }
+                val requestBody = json.toString().toRequestBody("application/json".toMediaTypeOrNull())
+                val request = Request.Builder()
+                    .url("$cleanUrl/api/v1/pairing/approve/")
+                    .post(requestBody)
+                    .build()
+                val response = httpClient.newCall(request).execute()
+                Log.i("MainActivity", "Pairing approve response code: ${response.code}")
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Failed to send pairing approval to backend: ${e.message}")
             }
         }
     }
@@ -236,6 +311,10 @@ class MainActivity : ComponentActivity() {
                 clientIp = ip,
                 clientUserAgent = ua,
                 onApprove = {
+                    val sessionId = activePairingSessionId
+                    if (sessionId != null) {
+                        approvePairingWithBackend(sessionId, true)
+                    }
                     showConsentDialog = false
                     isPaired = true
                     pairedEmail = email
@@ -244,6 +323,10 @@ class MainActivity : ComponentActivity() {
                     Toast.makeText(this, "Web client approved!", Toast.LENGTH_SHORT).show()
                 },
                 onReject = {
+                    val sessionId = activePairingSessionId
+                    if (sessionId != null) {
+                        approvePairingWithBackend(sessionId, false)
+                    }
                     showConsentDialog = false
                     pendingConsentRequest = null
                     Toast.makeText(this, "Connection rejected", Toast.LENGTH_SHORT).show()
@@ -287,20 +370,13 @@ class MainActivity : ComponentActivity() {
                         val newPin = pinGenerator.generate()
                         currentPin = newPin
                         initiatePairingWithBackend(newPin)
-
-                        // Demo fallback simulation after 4 seconds
-                        lifecycleScope.launch {
-                            delay(4000L)
-                            if (!isPaired && pendingConsentRequest == null) {
-                                pendingConsentRequest = Triple("admin@remotedevice.internal", "192.168.1.10", "Chrome Desktop")
-                                showConsentDialog = true
-                            }
-                        }
                     },
                     onRevokePairing = {
+                        pairingPollJob?.cancel()
                         secureStorage.setPaired(false)
                         isPaired = false
                         currentPin = null
+                        activePairingSessionId = null
                         currentScreen = Screen.PAIRING
                         Toast.makeText(this, "Pairing revoked", Toast.LENGTH_SHORT).show()
                     },

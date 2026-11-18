@@ -150,3 +150,30 @@ class CheckPairingStatusView(APIView):
             'device_id': str(session.device.id) if session.device else None,
             'device_name': session.device.device_name if session.device else None
         }, status=status.HTTP_200_OK)
+
+class DevicePairingStatusView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, session_id):
+        device_token = request.query_params.get('device_token')
+        if not device_token:
+            return Response({'detail': 'Missing device_token parameter'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        token_hash = hashlib.sha256(device_token.encode('utf-8')).hexdigest()
+        try:
+            device = Device.objects.get(device_token_hash=token_hash)
+            session = PairingSession.objects.get(id=session_id, device=device)
+        except (Device.DoesNotExist, PairingSession.DoesNotExist):
+            return Response({'detail': 'Pairing session or device not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        data = {
+            'pairing_session_id': str(session.id),
+            'status': session.status,
+            'is_expired': session.is_expired,
+        }
+        if session.status == PairingStatus.AWAITING_APPROVAL and session.target_user:
+            data['target_user_email'] = session.target_user.email
+            data['client_ip'] = session.client_ip or 'Unknown IP'
+            data['client_user_agent'] = session.client_user_agent or 'Web Browser'
+
+        return Response(data, status=status.HTTP_200_OK)

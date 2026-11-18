@@ -40,7 +40,7 @@ class WebRtcManager(
         private const val DATA_CHANNEL_LABEL = "input-channel"
     }
 
-    private val eglBase: EglBase = EglBase.create()
+    private val eglBase: EglBase by lazy { EglBase.create() }
     private var peerConnectionFactory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
     private var videoSource: VideoSource? = null
@@ -54,48 +54,64 @@ class WebRtcManager(
     }
 
     private fun initPeerConnectionFactory() {
-        val options = PeerConnectionFactory.InitializationOptions.builder(context)
-            .setEnableInternalTracer(false)
-            .createInitializationOptions()
-        PeerConnectionFactory.initialize(options)
+        try {
+            val options = PeerConnectionFactory.InitializationOptions.builder(context)
+                .setEnableInternalTracer(false)
+                .createInitializationOptions()
+            PeerConnectionFactory.initialize(options)
 
-        val encoderFactory = DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true)
-        val decoderFactory = DefaultVideoDecoderFactory(eglBase.eglBaseContext)
+            val encoderFactory = DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true)
+            val decoderFactory = DefaultVideoDecoderFactory(eglBase.eglBaseContext)
 
-        peerConnectionFactory = PeerConnectionFactory.builder()
-            .setVideoEncoderFactory(encoderFactory)
-            .setVideoDecoderFactory(decoderFactory)
-            .createPeerConnectionFactory()
+            peerConnectionFactory = PeerConnectionFactory.builder()
+                .setVideoEncoderFactory(encoderFactory)
+                .setVideoDecoderFactory(decoderFactory)
+                .createPeerConnectionFactory()
+            Log.i(TAG, "PeerConnectionFactory initialized successfully.")
+        } catch (e: Throwable) {
+            Log.e(TAG, "Error initializing PeerConnectionFactory", e)
+        }
     }
 
     /**
      * Initializes ScreenCapturer with the user-approved MediaProjection Intent.
+     * Note: In Android 14+, the resultData token must only be consumed once.
      */
-    fun startScreenCapture(resultData: Intent, displayMetrics: DisplayMetrics) {
-        screenCapturer = ScreenCapturerAndroid(resultData, object : MediaProjection.Callback() {
-            override fun onStop() {
-                super.onStop()
-                Log.w(TAG, "MediaProjection revoked by OS")
-                stop()
-            }
-        })
+    fun startScreenCapture(resultData: Intent, displayMetrics: DisplayMetrics): Boolean {
+        return try {
+            screenCapturer = ScreenCapturerAndroid(resultData, object : MediaProjection.Callback() {
+                override fun onStop() {
+                    super.onStop()
+                    Log.w(TAG, "MediaProjection revoked by OS callback")
+                    stop()
+                }
+            })
 
-        surfaceTextureHelper = SurfaceTextureHelper.create("ScreenCaptureThread", eglBase.eglBaseContext)
-        videoSource = peerConnectionFactory?.createVideoSource(screenCapturer!!.isScreencast)
+            surfaceTextureHelper = SurfaceTextureHelper.create("ScreenCaptureThread", eglBase.eglBaseContext)
+            videoSource = peerConnectionFactory?.createVideoSource(screenCapturer?.isScreencast ?: true)
 
-        screenCapturer?.initialize(
-            surfaceTextureHelper,
-            context,
-            videoSource?.capturerObserver
-        )
+            screenCapturer?.initialize(
+                surfaceTextureHelper,
+                context,
+                videoSource?.capturerObserver
+            )
 
-        // Capture at 1080x2400 (or device resolution scaled to max 1080p for 60fps low-latency)
-        val width = minOf(displayMetrics.widthPixels, 1080)
-        val height = minOf(displayMetrics.heightPixels, 1920)
-        val fps = 60
+            // Ensure width and height are even multiples of 2 for hardware encoder compatibility
+            val rawWidth = minOf(displayMetrics.widthPixels, 1080)
+            val rawHeight = minOf(displayMetrics.heightPixels, 1920)
+            val width = if (rawWidth % 2 != 0) rawWidth - 1 else rawWidth
+            val height = if (rawHeight % 2 != 0) rawHeight - 1 else rawHeight
+            val fps = 30
 
-        screenCapturer?.startCapture(width, height, fps)
-        videoTrack = peerConnectionFactory?.createVideoTrack(VIDEO_TRACK_ID, videoSource)
+            Log.i(TAG, "Starting screen capture at ${width}x${height} @ ${fps}fps")
+            screenCapturer?.startCapture(width, height, fps)
+            videoTrack = peerConnectionFactory?.createVideoTrack(VIDEO_TRACK_ID, videoSource)
+            Log.i(TAG, "Screen capturer and video track created successfully.")
+            true
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to start ScreenCapturerAndroid: ${e.message}", e)
+            false
+        }
     }
 
     /**

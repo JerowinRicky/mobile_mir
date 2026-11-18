@@ -63,7 +63,6 @@ class MediaProjectionService : Service() {
     }
 
     private val binder = LocalBinder()
-    private var mediaProjection: MediaProjection? = null
     private var webRtcManager: WebRtcManager? = null
     private var signalingClient: SignalingClient? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
@@ -77,22 +76,39 @@ class MediaProjectionService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0)
-                val resultData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    intent.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intent.getParcelableExtra(EXTRA_RESULT_DATA)
-                }
-                val sessionId = intent.getStringExtra(EXTRA_SESSION_ID) ?: ""
+                try {
+                    val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0)
+                    val resultData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra(EXTRA_RESULT_DATA)
+                    }
+                    val sessionId = intent.getStringExtra(EXTRA_SESSION_ID) ?: ""
 
-                if (resultCode != 0 && resultData != null) {
-                    startForegroundWithNotification()
-                    initMediaProjection(resultCode, resultData)
-                    initWebRtcAndSignaling(resultData, sessionId)
-                    isRunning = true
-                } else {
+                    if (resultCode != 0 && resultData != null) {
+                        startForegroundWithNotification()
+                        val success = initWebRtcAndSignaling(resultData, sessionId)
+                        if (success) {
+                            isRunning = true
+                            Log.i(TAG, "MediaProjectionService started successfully.")
+                        } else {
+                            Log.w(TAG, "Screen capture setup failed, stopping service.")
+                            stopProjection()
+                            stopForeground(STOP_FOREGROUND_REMOVE)
+                            stopSelf()
+                            isRunning = false
+                        }
+                    } else {
+                        Log.w(TAG, "Invalid resultCode ($resultCode) or null resultData")
+                        stopSelf()
+                    }
+                } catch (e: Throwable) {
+                    Log.e(TAG, "Exception in onStartCommand ACTION_START", e)
+                    stopProjection()
+                    stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
+                    isRunning = false
                 }
             }
             ACTION_STOP -> {
@@ -149,77 +165,75 @@ class MediaProjectionService : Service() {
         }
     }
 
-    private fun initMediaProjection(resultCode: Int, data: Intent) {
-        val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        mediaProjection = projectionManager.getMediaProjection(resultCode, data)?.apply {
-            registerCallback(object : MediaProjection.Callback() {
-                override fun onStop() {
-                    super.onStop()
-                    stopProjection()
-                    stopSelf()
-                }
-            }, null)
-        }
-    }
+    private fun initWebRtcAndSignaling(resultData: Intent, sessionId: String): Boolean {
+        return try {
+            val secureStorage = SecureStorage(this)
+            val deviceToken = secureStorage.getDeviceToken() ?: ""
+            val serverUrl = secureStorage.getServerUrl().replace("http://", "ws://").replace("https://", "wss://")
 
-    private fun initWebRtcAndSignaling(resultData: Intent, sessionId: String) {
-        val secureStorage = SecureStorage(this)
-        val deviceToken = secureStorage.getDeviceToken() ?: ""
-        val serverUrl = secureStorage.getServerUrl().replace("http://", "ws://").replace("https://", "wss://")
+            signalingClient = SignalingClient()
+            webRtcManager = WebRtcManager(this, signalingClient!!)
 
-        signalingClient = SignalingClient()
-        webRtcManager = WebRtcManager(this, signalingClient!!)
+            val metrics = resources.displayMetrics
+            val captureStarted = webRtcManager?.startScreenCapture(resultData, metrics) ?: false
+            if (!captureStarted) {
+                Log.w(TAG, "webRtcManager.startScreenCapture returned false.")
+            }
 
-        val metrics = resources.displayMetrics
-        webRtcManager?.startScreenCapture(resultData, metrics)
+            val iceServers = listOf(
+                PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
+                PeerConnection.IceServer.builder("stun:stun1.l.google.com:19302").createIceServer()
+            )
+            webRtcManager?.createPeerConnection(iceServers)
 
-        val iceServers = listOf(
-            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
-            PeerConnection.IceServer.builder("stun:stun1.l.google.com:19302").createIceServer()
-        )
-        webRtcManager?.createPeerConnection(iceServers)
-
-        // Listen for incoming signaling events
-        serviceScope.launch {
-            signalingClient?.events?.collect { event ->
-                when (event) {
-                    is SignalingEvent.Connected -> {
-                        Log.i(TAG, "Signaling connected. Creating SDP Offer...")
-                        webRtcManager?.createOffer()
-                    }
-                    is SignalingEvent.SdpAnswerReceived -> {
-                        Log.i(TAG, "Remote SDP Answer received.")
-                        webRtcManager?.setRemoteAnswer(event.sdp)
-                    }
-                    is SignalingEvent.IceCandidateReceived -> {
-                        webRtcManager?.addRemoteIceCandidate(event.sdpMid, event.sdpMLineIndex, event.candidate)
-                    }
-                    is SignalingEvent.PeerDisconnected, is SignalingEvent.SessionTerminated -> {
-                        Log.w(TAG, "Peer disconnected or session ended.")
-                        stopProjection()
-                        stopForeground(STOP_FOREGROUND_REMOVE)
-                        stopSelf()
-                    }
-                    is SignalingEvent.Error -> {
-                        Log.e(TAG, "Signaling error: ${event.message}")
+            // Listen for incoming signaling events
+            serviceScope.launch {
+                signalingClient?.events?.collect { event ->
+                    when (event) {
+                        is SignalingEvent.Connected -> {
+                            Log.i(TAG, "Signaling connected. Creating SDP Offer...")
+                            webRtcManager?.createOffer()
+                        }
+                        is SignalingEvent.SdpAnswerReceived -> {
+                            Log.i(TAG, "Remote SDP Answer received.")
+                            webRtcManager?.setRemoteAnswer(event.sdp)
+                        }
+                        is SignalingEvent.IceCandidateReceived -> {
+                            webRtcManager?.addRemoteIceCandidate(event.sdpMid, event.sdpMLineIndex, event.candidate)
+                        }
+                        is SignalingEvent.PeerDisconnected, is SignalingEvent.SessionTerminated -> {
+                            Log.w(TAG, "Peer disconnected or session ended.")
+                            stopProjection()
+                            stopForeground(STOP_FOREGROUND_REMOVE)
+                            stopSelf()
+                        }
+                        is SignalingEvent.Error -> {
+                            Log.e(TAG, "Signaling error: ${event.message}")
+                        }
                     }
                 }
             }
-        }
 
-        if (sessionId.isNotEmpty() && deviceToken.isNotEmpty()) {
-            signalingClient?.connect(serverUrl, sessionId, deviceToken)
+            if (sessionId.isNotEmpty() && deviceToken.isNotEmpty()) {
+                signalingClient?.connect(serverUrl, sessionId, deviceToken)
+            }
+            true
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed in initWebRtcAndSignaling: ${e.message}", e)
+            false
         }
     }
 
     private fun stopProjection() {
-        webRtcManager?.stop()
-        webRtcManager = null
-        signalingClient?.disconnect()
-        signalingClient = null
-        mediaProjection?.stop()
-        mediaProjection = null
-        isRunning = false
+        try {
+            webRtcManager?.stop()
+            webRtcManager = null
+            signalingClient?.disconnect()
+            signalingClient = null
+            isRunning = false
+        } catch (e: Throwable) {
+            Log.e(TAG, "Error in stopProjection: ${e.message}", e)
+        }
     }
 
     override fun onDestroy() {

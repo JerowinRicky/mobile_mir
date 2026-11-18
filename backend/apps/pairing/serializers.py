@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 class InitiatePairingSerializer(serializers.Serializer):
-    device_id = serializers.UUIDField()
+    device_id = serializers.CharField(max_length=255)
     device_token = serializers.CharField()
     pin_hash = serializers.CharField(max_length=255)
     pin_salt = serializers.CharField(max_length=64)

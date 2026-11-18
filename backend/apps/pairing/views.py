@@ -1,4 +1,6 @@
 import hashlib
+import logging
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -20,13 +22,21 @@ class InitiatePairingView(APIView):
         serializer = InitiatePairingSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        device_id = serializer.validated_data['device_id']
+        device_id_raw = serializer.validated_data['device_id']
         device_token = serializer.validated_data['device_token']
         token_hash = hashlib.sha256(device_token.encode('utf-8')).hexdigest()
 
-        try:
-            device = Device.objects.get(id=device_id, device_token_hash=token_hash)
-        except Device.DoesNotExist:
+        # Lookup device by token_hash, matching id or hardware_fingerprint
+        device = Device.objects.filter(device_token_hash=token_hash).filter(
+            Q(id__iexact=device_id_raw) | Q(hardware_fingerprint=device_id_raw)
+        ).first()
+
+        # If not matched by ID/fingerprint filter, fall back to unique device_token_hash
+        if not device:
+            device = Device.objects.filter(device_token_hash=token_hash).first()
+
+        if not device:
+            logging.warning(f"InitiatePairing failed: Invalid credentials for device_id={device_id_raw}")
             return Response({'detail': 'Invalid device credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 
         session = PairingService.initiate_pairing(

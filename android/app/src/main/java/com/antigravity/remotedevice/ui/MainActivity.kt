@@ -176,6 +176,10 @@ class MainActivity : ComponentActivity() {
                     if (token.isNotEmpty()) {
                         secureStorage.setDeviceToken(token)
                     }
+                    val backendDeviceId = resJson.optString("device_id")
+                    if (backendDeviceId.isNotEmpty()) {
+                        secureStorage.setBackendDeviceId(backendDeviceId)
+                    }
                     secureStorage.setRegistered(true)
                     withContext(Dispatchers.Main) {
                         isRegistered = true
@@ -201,7 +205,7 @@ class MainActivity : ComponentActivity() {
 
     private fun initiatePairingWithBackend(newPin: GeneratedPin) {
         val cleanUrl = serverUrl.trim().removeSuffix("/")
-        val deviceId = secureStorage.getOrCreateDeviceId()
+        val deviceId = secureStorage.getBackendDeviceId() ?: secureStorage.getOrCreateDeviceId()
         val deviceToken = secureStorage.getDeviceToken() ?: ""
 
         pairingPollJob?.cancel()
@@ -221,18 +225,27 @@ class MainActivity : ComponentActivity() {
                     .build()
 
                 val response = httpClient.newCall(request).execute()
+                val body = response.body?.string() ?: ""
+
                 if (response.isSuccessful) {
-                    val respBody = response.body?.string() ?: ""
-                    val respJson = JSONObject(respBody)
+                    val respJson = JSONObject(body)
                     val sessionId = respJson.optString("pairing_session_id")
                     if (sessionId.isNotEmpty()) {
                         activePairingSessionId = sessionId
                         Log.i("MainActivity", "Pairing initiated with session ID: $sessionId")
                         startPairingStatusPolling(cleanUrl, sessionId, deviceToken)
                     }
+                } else {
+                    Log.e("MainActivity", "Pairing initiate failed: HTTP ${response.code} $body")
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "Server rejected PIN: HTTP ${response.code}", Toast.LENGTH_LONG).show()
+                    }
                 }
             } catch (e: Exception) {
                 Log.w("MainActivity", "Pairing initiate network warning: ${e.message}")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Pairing network error: ${e.message}", Toast.LENGTH_LONG).show()
+                }
             }
         }
     }

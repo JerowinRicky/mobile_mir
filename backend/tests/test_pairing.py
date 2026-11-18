@@ -113,3 +113,22 @@ class PairingTestCase(TestCase):
 
         session = PairingSession.objects.get(id=session_id)
         self.assertEqual(session.status, PairingStatus.FAILED)
+
+    def test_initiate_pairing_using_hardware_fingerprint(self):
+        # Client sends hardware_fingerprint instead of backend primary key UUID
+        init_res = self.client.post(self.initiate_url, {
+            'device_id': self.device.hardware_fingerprint,
+            'device_token': self.raw_device_token,
+            'pin_hash': self.test_pin_hash,
+            'pin_salt': self.test_salt,
+            'expires_in': 300
+        }, format='json')
+
+        self.assertEqual(init_res.status_code, status.HTTP_201_CREATED)
+        self.assertIn('pairing_session_id', init_res.data)
+
+        # Web user verifies PIN
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.user_token}')
+        verify_res = self.client.post(self.verify_url, {'pin': self.test_pin}, format='json')
+        self.assertEqual(verify_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(verify_res.data['status'], PairingStatus.AWAITING_APPROVAL)

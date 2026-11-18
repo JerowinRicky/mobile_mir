@@ -11,6 +11,7 @@ class SecureStorage(context: Context) {
     companion object {
         private const val PREFS_FILE = "antigravity_secure_prefs"
         private const val KEY_DEVICE_ID = "pref_device_id"
+        private const val KEY_BACKEND_DEVICE_ID = "pref_backend_device_id"
         private const val KEY_DEVICE_NAME = "pref_device_name"
         private const val KEY_DEVICE_TOKEN = "pref_device_token"
         private const val KEY_IS_REGISTERED = "pref_is_registered"
@@ -42,6 +43,14 @@ class SecureStorage(context: Context) {
             sharedPreferences.edit().putString(KEY_DEVICE_ID, deviceId).apply()
         }
         return deviceId
+    }
+
+    fun getBackendDeviceId(): String? {
+        return sharedPreferences.getString(KEY_BACKEND_DEVICE_ID, null)
+    }
+
+    fun setBackendDeviceId(backendId: String) {
+        sharedPreferences.edit().putString(KEY_BACKEND_DEVICE_ID, backendId).apply()
     }
 
     fun getDeviceName(): String {

@@ -33,6 +33,7 @@ class MediaProjectionService : Service() {
         const val NOTIFICATION_ID = 1001
         const val ACTION_START = "com.antigravity.remotedevice.action.START_PROJECTION"
         const val ACTION_STOP = "com.antigravity.remotedevice.action.STOP_PROJECTION"
+        const val ACTION_CONNECT_SESSION = "com.antigravity.remotedevice.action.CONNECT_SESSION"
         const val EXTRA_RESULT_CODE = "extra_result_code"
         const val EXTRA_RESULT_DATA = "extra_result_data"
         const val EXTRA_SESSION_ID = "extra_session_id"
@@ -45,6 +46,18 @@ class MediaProjectionService : Service() {
                 action = ACTION_START
                 putExtra(EXTRA_RESULT_CODE, resultCode)
                 putExtra(EXTRA_RESULT_DATA, data)
+                putExtra(EXTRA_SESSION_ID, sessionId)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
+
+        fun connectSession(context: Context, sessionId: String) {
+            val intent = Intent(context, MediaProjectionService::class.java).apply {
+                action = ACTION_CONNECT_SESSION
                 putExtra(EXTRA_SESSION_ID, sessionId)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -117,8 +130,25 @@ class MediaProjectionService : Service() {
                 stopSelf()
                 isRunning = false
             }
+            ACTION_CONNECT_SESSION -> {
+                val sessionId = intent?.getStringExtra(EXTRA_SESSION_ID) ?: ""
+                if (sessionId.isNotEmpty()) {
+                    connectToSignalingSession(sessionId)
+                }
+            }
         }
         return START_NOT_STICKY
+    }
+
+    private fun connectToSignalingSession(sessionId: String) {
+        val secureStorage = SecureStorage(this)
+        val deviceToken = secureStorage.getDeviceToken() ?: ""
+        val serverUrl = secureStorage.getServerUrl().replace("http://", "ws://").replace("https://", "wss://")
+
+        if (signalingClient != null && deviceToken.isNotEmpty()) {
+            Log.i(TAG, "Connecting to signaling session: $sessionId")
+            signalingClient?.connect(serverUrl, sessionId, deviceToken)
+        }
     }
 
     private fun startForegroundWithNotification() {

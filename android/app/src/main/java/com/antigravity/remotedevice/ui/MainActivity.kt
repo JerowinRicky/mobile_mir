@@ -317,6 +317,39 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // Automatic background polling for incoming remote session from web client
+        LaunchedEffect(isPaired, isMediaProjectionActive) {
+            if (isPaired && isMediaProjectionActive) {
+                val cleanUrl = serverUrl.trim().removeSuffix("/")
+                val deviceToken = secureStorage.getDeviceToken() ?: ""
+                while (isActive) {
+                    try {
+                        val request = Request.Builder()
+                            .url("$cleanUrl/api/v1/sessions/active-for-device/?device_token=$deviceToken")
+                            .get()
+                            .build()
+                        val response = httpClient.newCall(request).execute()
+                        if (response.isSuccessful) {
+                            val body = response.body?.string() ?: ""
+                            val json = JSONObject(body)
+                            if (json.optBoolean("has_active_session", false)) {
+                                val sessionId = json.optString("session_id")
+                                val userEmail = json.optString("user_email")
+                                if (sessionId.isNotEmpty() && currentScreen != Screen.ACTIVE_SESSION) {
+                                    pairedEmail = userEmail
+                                    MediaProjectionService.connectSession(this@MainActivity, sessionId)
+                                    currentScreen = Screen.ACTIVE_SESSION
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.d("MainActivity", "Polling active session: ${e.message}")
+                    }
+                    delay(2000L)
+                }
+            }
+        }
+
         if (showConsentDialog && pendingConsentRequest != null) {
             val (email, ip, ua) = pendingConsentRequest!!
             ConsentDialog(

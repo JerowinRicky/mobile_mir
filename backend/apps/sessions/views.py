@@ -1,8 +1,9 @@
+import hashlib
 import secrets
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from apps.devices.models import Device, DeviceStatus
 from apps.sessions.models import RemoteSession, SessionStatus
 from apps.sessions.serializers import CreateSessionSerializer, RemoteSessionSerializer
@@ -88,3 +89,36 @@ class SessionHistoryView(APIView):
         sessions = RemoteSession.objects.filter(user=request.user)
         serializer = RemoteSessionSerializer(sessions, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+class ActiveDeviceSessionView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        device_token = request.query_params.get('device_token')
+        if not device_token:
+            return Response({'detail': 'device_token required'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        token_hash = hashlib.sha256(device_token.encode('utf-8')).hexdigest()
+        try:
+            device = Device.objects.get(device_token_hash=token_hash)
+        except Device.DoesNotExist:
+            return Response({'detail': 'Invalid device token'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        # Find any INITIALIZING or ACTIVE session for this device
+        session = RemoteSession.objects.filter(
+            device=device,
+            status__in=[SessionStatus.INITIALIZING, SessionStatus.ACTIVE]
+        ).select_related('user').order_by('-created_at').first()
+
+        if not session:
+            return Response({'has_active_session': False}, status=status.HTTP_200_OK)
+
+        turn_config = generate_turn_credentials(str(session.user_id) if session.user_id else str(device.id))
+
+        return Response({
+            'has_active_session': True,
+            'session_id': str(session.id),
+            'status': session.status,
+            'user_email': session.user.email if session.user else 'Authorized Web User',
+            'turn_config': turn_config
+        }, status=status.HTTP_200_OK)

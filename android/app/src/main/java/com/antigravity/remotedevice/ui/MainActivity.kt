@@ -318,6 +318,7 @@ class MainActivity : ComponentActivity() {
             if (isPaired && isMediaProjectionActive) {
                 val cleanUrl = serverUrl.trim().removeSuffix("/")
                 val deviceToken = secureStorage.getDeviceToken() ?: ""
+                var connectedSessionId: String? = null
                 while (isActive) {
                     try {
                         val request = Request.Builder()
@@ -331,11 +332,14 @@ class MainActivity : ComponentActivity() {
                             if (json.optBoolean("has_active_session", false)) {
                                 val sessionId = json.optString("session_id")
                                 val userEmail = json.optString("user_email")
-                                if (sessionId.isNotEmpty() && currentScreen != Screen.ACTIVE_SESSION) {
+                                if (sessionId.isNotEmpty() && connectedSessionId != sessionId) {
+                                    connectedSessionId = sessionId
                                     pairedEmail = userEmail
                                     MediaProjectionService.connectSession(this@MainActivity, sessionId)
                                     currentScreen = Screen.ACTIVE_SESSION
                                 }
+                            } else {
+                                connectedSessionId = null
                             }
                         }
                     } catch (e: Exception) {

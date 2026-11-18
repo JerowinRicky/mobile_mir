@@ -89,7 +89,11 @@ fun PermissionsScreen(
 
         PermissionCard(
             title = "2. Accessibility Input Service",
-            description = "Enables authorized tap, swipe, and navigation controls dispatched from your browser dashboard.",
+            description = if (isAccessibilityEnabled) {
+                "Enables authorized tap, swipe, and navigation controls dispatched from your browser dashboard."
+            } else {
+                "Enables remote tap and swipe control. (Optional for viewing)\n\n⚠️ If Android shows 'Controlled by Restricted Setting': Go to Phone Settings > Apps > Remote Device > tap 3 dots (⋮) in top-right > 'Allow restricted settings'."
+            },
             isGranted = isAccessibilityEnabled,
             actionLabel = "Open Accessibility Settings",
             onAction = onOpenAccessibilitySettings
@@ -105,20 +109,25 @@ fun PermissionsScreen(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        val allPermissionsReady = hasNotificationPermission && isAccessibilityEnabled && isMediaProjectionActive
+        val canStream = hasNotificationPermission && isMediaProjectionActive
+        val allPermissionsReady = canStream && isAccessibilityEnabled
 
         Button(
             onClick = onNavigateToActiveSession,
-            enabled = allPermissionsReady,
+            enabled = canStream,
             modifier = Modifier.fillMaxWidth().height(52.dp),
             shape = RoundedCornerShape(10.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = EmeraldAccent,
+                containerColor = if (allPermissionsReady) EmeraldAccent else Color(0xFFD97706),
                 disabledContainerColor = Color.DarkGray
             )
         ) {
             Text(
-                text = if (allPermissionsReady) "All Permissions Ready — Open Session" else "Complete Permissions to Continue",
+                text = when {
+                    allPermissionsReady -> "All Permissions Ready — Open Session"
+                    canStream -> "Start Session (View-Only Mode)"
+                    else -> "Enable Screen Sharing & Notifications to Continue"
+                },
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold
             )

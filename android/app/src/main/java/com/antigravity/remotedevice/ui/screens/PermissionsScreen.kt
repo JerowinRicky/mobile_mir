@@ -10,13 +10,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -40,7 +43,9 @@ fun PermissionsScreen(
     onRequestNotificationPermission: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
     onRequestMediaProjection: () -> Unit,
-    onNavigateToActiveSession: () -> Unit
+    onNavigateToActiveSession: () -> Unit,
+    onNavigateToPairing: () -> Unit,
+    onNavigateToRegistration: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -48,12 +53,25 @@ fun PermissionsScreen(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = "Required Permissions",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Required Permissions",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            IconButton(onClick = onNavigateToRegistration) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Server Settings",
+                    tint = Color.LightGray
+                )
+            }
+        }
 
         Text(
             text = "To allow remote viewing and control, Android requires explicit user consent for background screen capture and accessibility input dispatch.",
@@ -104,6 +122,26 @@ fun PermissionsScreen(
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold
             )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = onNavigateToPairing,
+                modifier = Modifier.weight(1f).height(44.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Pairing Screen", color = Color.White, fontSize = 13.sp)
+            }
+            OutlinedButton(
+                onClick = onNavigateToRegistration,
+                modifier = Modifier.weight(1f).height(44.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Change Server URL", color = Color.White, fontSize = 13.sp)
+            }
         }
     }
 }

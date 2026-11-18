@@ -13,7 +13,7 @@ from apps.pairing.services import PairingService
 from apps.audit.utils import log_audit_event, get_client_ip
 
 class PairingRateThrottle(UserRateThrottle):
-    rate = '10/minute'
+    rate = '120/minute'
 
 class InitiatePairingView(APIView):
     permission_classes = [AllowAny]
@@ -61,7 +61,7 @@ class InitiatePairingView(APIView):
 
 class VerifyPinView(APIView):
     permission_classes = [IsAuthenticated]
-    throttle_classes = [PairingRateThrottle]
+    throttle_classes = []
 
     def post(self, request):
         serializer = VerifyPinSerializer(data=request.data)

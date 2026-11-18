@@ -193,11 +193,7 @@ class MainActivity : ComponentActivity() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Could not reach server: ${e.message}", Toast.LENGTH_LONG).show()
-                    // Still allow navigating for offline testing
-                    secureStorage.setRegistered(true)
-                    isRegistered = true
-                    currentScreen = Screen.PAIRING
+                    Toast.makeText(this@MainActivity, "Could not reach server at $cleanUrl: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -428,6 +424,9 @@ class MainActivity : ComponentActivity() {
                     },
                     onNavigateToPermissions = {
                         currentScreen = Screen.PERMISSIONS
+                    },
+                    onNavigateToRegistration = {
+                        currentScreen = Screen.REGISTRATION
                     }
                 )
             }
@@ -450,6 +449,12 @@ class MainActivity : ComponentActivity() {
                     },
                     onNavigateToActiveSession = {
                         currentScreen = Screen.ACTIVE_SESSION
+                    },
+                    onNavigateToPairing = {
+                        currentScreen = Screen.PAIRING
+                    },
+                    onNavigateToRegistration = {
+                        currentScreen = Screen.REGISTRATION
                     }
                 )
             }

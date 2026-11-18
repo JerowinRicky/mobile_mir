@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -46,7 +48,8 @@ fun PairingScreen(
     pairedUserEmail: String?,
     onGeneratePin: () -> Unit,
     onRevokePairing: () -> Unit,
-    onNavigateToPermissions: () -> Unit
+    onNavigateToPermissions: () -> Unit,
+    onNavigateToRegistration: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -58,20 +61,32 @@ fun PairingScreen(
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Icon(
-                imageVector = Icons.Default.Lock,
-                contentDescription = null,
-                tint = BluePrimary,
-                modifier = Modifier.height(30.dp)
-            )
-            Text(
-                text = "Device Pairing",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = BluePrimary,
+                    modifier = Modifier.height(30.dp)
+                )
+                Text(
+                    text = "Device Pairing",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+            IconButton(onClick = onNavigateToRegistration) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Server Settings",
+                    tint = Color.LightGray
+                )
+            }
         }
 
         if (isPaired) {
@@ -219,6 +234,14 @@ fun PairingScreen(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold
                 )
+            }
+
+            OutlinedButton(
+                onClick = onNavigateToRegistration,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text("Change Server URL / Re-register", color = Color.White)
             }
         }
     }

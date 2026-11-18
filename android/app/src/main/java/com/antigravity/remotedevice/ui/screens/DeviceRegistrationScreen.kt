@@ -21,6 +21,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -28,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +42,12 @@ import com.antigravity.remotedevice.ui.theme.BluePrimary
 import com.antigravity.remotedevice.ui.theme.EmeraldAccent
 import com.antigravity.remotedevice.ui.theme.Slate700
 import com.antigravity.remotedevice.ui.theme.Slate800
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.util.concurrent.TimeUnit
 
 @Composable
 fun DeviceRegistrationScreen(
@@ -109,6 +117,10 @@ fun DeviceRegistrationScreen(
                     )
                 }
 
+                var testStatus by remember { mutableStateOf<String?>(null) }
+                var isTesting by remember { mutableStateOf(false) }
+                val coroutineScope = rememberCoroutineScope()
+
                 OutlinedTextField(
                     value = editableUrl,
                     onValueChange = {
@@ -129,11 +141,56 @@ fun DeviceRegistrationScreen(
                     )
                 )
 
-                Text(
-                    text = "Enter your server IP & port (e.g. http://192.168.1.50:8008 or public domain).",
-                    fontSize = 11.sp,
-                    color = Color.Gray
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Enter server IP:port (e.g. http://192.168.1.50:8008)",
+                        fontSize = 11.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            isTesting = true
+                            testStatus = null
+                            val clean = editableUrl.trim().removeSuffix("/")
+                            coroutineScope.launch(Dispatchers.IO) {
+                                try {
+                                    val client = OkHttpClient.Builder()
+                                        .connectTimeout(3, TimeUnit.SECONDS)
+                                        .build()
+                                    val req = Request.Builder().url("$clean/api/v1/auth/health/").get().build()
+                                    val resp = client.newCall(req).execute()
+                                    withContext(Dispatchers.Main) {
+                                        isTesting = false
+                                        testStatus = if (resp.isSuccessful) "Server Connected (HTTP 200)" else "Server returned ${resp.code}"
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        isTesting = false
+                                        testStatus = "Unreachable: ${e.message}"
+                                    }
+                                }
+                            }
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Text(if (isTesting) "Testing..." else "Test Connection", fontSize = 12.sp)
+                    }
+                }
+
+                if (testStatus != null) {
+                    Text(
+                        text = testStatus!!,
+                        fontSize = 12.sp,
+                        color = if (testStatus!!.startsWith("Server Connected")) EmeraldAccent else Color.Yellow,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
 
@@ -217,6 +274,15 @@ fun DeviceRegistrationScreen(
                 Text("Register Device with Server", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
         } else {
+            Button(
+                onClick = onRegisterDevice,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = BluePrimary)
+            ) {
+                Text("Update Server Connection / Re-register", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
             Button(
                 onClick = onNavigateToPairing,
                 modifier = Modifier.fillMaxWidth().height(52.dp),

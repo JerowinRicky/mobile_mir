@@ -38,7 +38,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onStartSession }) 
     const interval = setInterval(async () => {
       try {
         const res = await api.checkPairingStatus(pendingApprovalId);
-        if (res.status === 'APPROVED') {
+        if (res.status === 'APPROVED' || res.status === 'PAIRED') {
           clearInterval(interval);
           setPendingApprovalId(null);
           setShowPairModal(false);

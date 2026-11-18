@@ -177,7 +177,7 @@ NAME                    STATUS                 PORTS
 remotedevice-coturn     Up (healthy)           Host network
 remotedevice-postgres   Up (healthy)           5432/tcp
 remotedevice-redis      Up (healthy)           6379/tcp
-remotedevice-backend    Up (healthy)           8000/tcp
+remotedevice-backend    Up (healthy)           8008/tcp
 remotedevice-gateway    Up                     0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
 ```
 

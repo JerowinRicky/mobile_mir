@@ -38,11 +38,11 @@ RUN chown -R appuser:appgroup /app
 
 USER appuser
 
-EXPOSE 8000
+EXPOSE 8008
 
 # Health check endpoint
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/api/v1/auth/health/ || exit 1
+    CMD curl -f http://localhost:8008/api/v1/auth/health/ || exit 1
 
 # Launch ASGI server with Daphne for WebSockets and HTTP
-CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8008", "core.asgi:application"]

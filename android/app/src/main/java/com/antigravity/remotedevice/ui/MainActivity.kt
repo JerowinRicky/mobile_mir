@@ -68,7 +68,7 @@ class MainActivity : ComponentActivity() {
     private var currentScreen by mutableStateOf(Screen.REGISTRATION)
     private var isRegistered by mutableStateOf(false)
     private var isPaired by mutableStateOf(false)
-    private var serverUrl by mutableStateOf("http://10.0.2.2:8000")
+    private var serverUrl by mutableStateOf("http://10.0.2.2:8008")
     private var pairedEmail by mutableStateOf<String?>(null)
     private var showConsentDialog by mutableStateOf(false)
     private var pendingConsentRequest by mutableStateOf<Triple<String, String, String>?>(null)

@@ -70,8 +70,10 @@ services:
       COTURN_TURN_SERVER: ${COTURN_TURN_SERVER:-turn:127.0.0.1:3478}
       COTURN_AUTH_SECRET: ${COTURN_AUTH_SECRET:-antigravity-coturn-static-secret-2026}
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-jwt-ecdsa-or-hs256-production-secret-2026}
+    ports:
+      - "${BACKEND_PORT:-8008}:8008"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/auth/health/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8008/api/v1/auth/health/"]
       interval: 15s
       timeout: 5s
       retries: 3

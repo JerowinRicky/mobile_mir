@@ -185,7 +185,7 @@ if dockerfile_backend.exists():
     check("Backend Dockerfile Has Healthcheck", "HEALTHCHECK" in content and "/api/v1/auth/health/" in content,
           "Automated health probes against /api/v1/auth/health/")
     check("Backend Dockerfile Starts Daphne ASGI", "daphne" in content and "core.asgi:application" in content,
-          "Daphne ASGI server binds to port 8000 for HTTP and WebSockets")
+          "Daphne ASGI server binds to port 8008 for HTTP and WebSockets")
 
 # Check Nginx production configuration
 nginx_conf = INFRA_DIR / "nginx" / "nginx.conf"

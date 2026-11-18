@@ -115,7 +115,7 @@ fun DeviceRegistrationScreen(
                         editableUrl = it
                         onServerUrlChange(it)
                     },
-                    placeholder = { Text("http://192.168.1.X:8000", color = Color.Gray) },
+                    placeholder = { Text("http://192.168.1.X:8008", color = Color.Gray) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
@@ -130,7 +130,7 @@ fun DeviceRegistrationScreen(
                 )
 
                 Text(
-                    text = "Enter your server IP & port (e.g. http://192.168.1.50:8000 or public domain).",
+                    text = "Enter your server IP & port (e.g. http://192.168.1.50:8008 or public domain).",
                     fontSize = 11.sp,
                     color = Color.Gray
                 )

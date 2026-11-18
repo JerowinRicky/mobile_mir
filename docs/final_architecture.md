@@ -25,7 +25,7 @@ flowchart TB
     end
 
     subgraph BackendCluster ["Backend Cluster (Docker Compose)"]
-        DaphneASGI["Django ASGI Server (Daphne Port 8000)"]
+        DaphneASGI["Django ASGI Server (Daphne Port 8008)"]
         AuthApp["apps.accounts (JWT Auth)"]
         PairApp["apps.pairing (PBKDF2 PIN Engine)"]
         DevApp["apps.devices (Keystore Public Key Registry)"]

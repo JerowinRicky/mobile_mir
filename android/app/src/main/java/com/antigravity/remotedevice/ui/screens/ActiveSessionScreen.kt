@@ -38,6 +38,7 @@ import com.antigravity.remotedevice.ui.theme.Slate800
 fun ActiveSessionScreen(
     durationText: String,
     connectedUser: String,
+    isStreamConnected: Boolean = true,
     onTerminateSession: () -> Unit
 ) {
     Column(
@@ -55,10 +56,10 @@ fun ActiveSessionScreen(
             Box(
                 modifier = Modifier
                     .size(14.dp)
-                    .background(EmeraldAccent, CircleShape)
+                    .background(if (isStreamConnected) EmeraldAccent else Color(0xFFF59E0B), CircleShape)
             )
             Text(
-                text = "Live Remote Session",
+                text = if (isStreamConnected) "Live Remote Session" else "Waiting for Web Client",
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
@@ -66,7 +67,11 @@ fun ActiveSessionScreen(
         }
 
         Text(
-            text = "Your device is currently sharing its display and accepting remote accessibility commands.",
+            text = if (isStreamConnected) {
+                "Your screen is currently broadcasting to the web dashboard."
+            } else {
+                "Screen sharing is ready. Go to your browser (http://localhost:3000) and click 'Connect' next to this device."
+            },
             style = MaterialTheme.typography.bodyMedium,
             color = Color.LightGray,
             modifier = Modifier.fillMaxWidth()
@@ -83,7 +88,7 @@ fun ActiveSessionScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "ACTIVE SESSION DURATION",
+                    text = if (isStreamConnected) "ACTIVE SESSION DURATION" else "WAITING TIME",
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.Gray,
                     letterSpacing = 2.sp
@@ -93,7 +98,7 @@ fun ActiveSessionScreen(
                     text = durationText,
                     fontSize = 44.sp,
                     fontWeight = FontWeight.Bold,
-                    color = EmeraldAccent
+                    color = if (isStreamConnected) EmeraldAccent else Color(0xFFF59E0B)
                 )
 
                 Column(
@@ -103,9 +108,13 @@ fun ActiveSessionScreen(
                         .padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(text = "Connected Controller: $connectedUser", color = Color.White, fontSize = 14.sp)
-                    Text(text = "Input Channel: Active (Touch & Navigation)", color = EmeraldAccent, fontSize = 13.sp)
-                    Text(text = "Status: Encrypted (DTLS-SRTP)", color = Color.LightGray, fontSize = 12.sp)
+                    Text(text = "Paired Controller: $connectedUser", color = Color.White, fontSize = 14.sp)
+                    Text(
+                        text = if (isStreamConnected) "WebRTC Video: Broadcasting" else "WebRTC Video: Waiting for Connection",
+                        color = if (isStreamConnected) EmeraldAccent else Color(0xFFF59E0B),
+                        fontSize = 13.sp
+                    )
+                    Text(text = "Channel: Encrypted DTLS-SRTP", color = Color.LightGray, fontSize = 12.sp)
                 }
             }
         }

@@ -72,6 +72,7 @@ class MainActivity : ComponentActivity() {
     private var isPaired by mutableStateOf(false)
     private var serverUrl by mutableStateOf("http://10.0.2.2:8008")
     private var pairedEmail by mutableStateOf<String?>(null)
+    private var activeRemoteSessionId by mutableStateOf<String?>(null)
     private var showConsentDialog by mutableStateOf(false)
     private var pendingConsentRequest by mutableStateOf<Triple<String, String, String>?>(null)
     private var activePairingSessionId: String? = null
@@ -303,6 +304,40 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun checkForActiveSession() {
+        val cleanUrl = serverUrl.trim().removeSuffix("/")
+        val deviceToken = secureStorage.getDeviceToken() ?: ""
+        if (deviceToken.isEmpty()) return
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url("$cleanUrl/api/v1/sessions/active-for-device/?device_token=$deviceToken")
+                    .get()
+                    .build()
+                val response = httpClient.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: ""
+                    val json = JSONObject(body)
+                    if (json.optBoolean("has_active_session", false)) {
+                        val sessionId = json.optString("session_id")
+                        val userEmail = json.optString("user_email")
+                        if (sessionId.isNotEmpty()) {
+                            MediaProjectionService.connectSession(this@MainActivity, sessionId)
+                            withContext(Dispatchers.Main) {
+                                activeRemoteSessionId = sessionId
+                                pairedEmail = userEmail
+                            }
+                            Log.i("MainActivity", "Active session connected immediately: $sessionId")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "checkForActiveSession error: ${e.message}", e)
+            }
+        }
+    }
+
     @Composable
     private fun AppNavigation() {
         // Countdown timer ticker for active PIN
@@ -316,36 +351,45 @@ class MainActivity : ComponentActivity() {
         // Automatic background polling for incoming remote session from web client
         LaunchedEffect(isPaired, isMediaProjectionActive) {
             if (isPaired && isMediaProjectionActive) {
-                val cleanUrl = serverUrl.trim().removeSuffix("/")
-                val deviceToken = secureStorage.getDeviceToken() ?: ""
-                var connectedSessionId: String? = null
-                while (isActive) {
-                    try {
-                        val request = Request.Builder()
-                            .url("$cleanUrl/api/v1/sessions/active-for-device/?device_token=$deviceToken")
-                            .get()
-                            .build()
-                        val response = httpClient.newCall(request).execute()
-                        if (response.isSuccessful) {
-                            val body = response.body?.string() ?: ""
-                            val json = JSONObject(body)
-                            if (json.optBoolean("has_active_session", false)) {
-                                val sessionId = json.optString("session_id")
-                                val userEmail = json.optString("user_email")
-                                if (sessionId.isNotEmpty() && connectedSessionId != sessionId) {
-                                    connectedSessionId = sessionId
-                                    pairedEmail = userEmail
-                                    MediaProjectionService.connectSession(this@MainActivity, sessionId)
-                                    currentScreen = Screen.ACTIVE_SESSION
+                withContext(Dispatchers.IO) {
+                    val cleanUrl = serverUrl.trim().removeSuffix("/")
+                    val deviceToken = secureStorage.getDeviceToken() ?: ""
+                    var connectedSessionId: String? = null
+                    while (isActive) {
+                        try {
+                            val request = Request.Builder()
+                                .url("$cleanUrl/api/v1/sessions/active-for-device/?device_token=$deviceToken")
+                                .get()
+                                .build()
+                            val response = httpClient.newCall(request).execute()
+                            if (response.isSuccessful) {
+                                val body = response.body?.string() ?: ""
+                                val json = JSONObject(body)
+                                if (json.optBoolean("has_active_session", false)) {
+                                    val sessionId = json.optString("session_id")
+                                    val userEmail = json.optString("user_email")
+                                    if (sessionId.isNotEmpty() && connectedSessionId != sessionId) {
+                                        connectedSessionId = sessionId
+                                        MediaProjectionService.connectSession(this@MainActivity, sessionId)
+                                        withContext(Dispatchers.Main) {
+                                            activeRemoteSessionId = sessionId
+                                            pairedEmail = userEmail
+                                            currentScreen = Screen.ACTIVE_SESSION
+                                        }
+                                        Log.i("MainActivity", "Web session detected and connected: $sessionId")
+                                    }
+                                } else {
+                                    connectedSessionId = null
+                                    withContext(Dispatchers.Main) {
+                                        activeRemoteSessionId = null
+                                    }
                                 }
-                            } else {
-                                connectedSessionId = null
                             }
+                        } catch (e: Exception) {
+                            Log.e("MainActivity", "Polling active session error: ${e.message}", e)
                         }
-                    } catch (e: Exception) {
-                        Log.d("MainActivity", "Polling active session: ${e.message}")
+                        delay(2000L)
                     }
-                    delay(2000L)
                 }
             }
         }
@@ -453,6 +497,7 @@ class MainActivity : ComponentActivity() {
                     },
                     onNavigateToActiveSession = {
                         currentScreen = Screen.ACTIVE_SESSION
+                        checkForActiveSession()
                     },
                     onNavigateToPairing = {
                         currentScreen = Screen.PAIRING
@@ -475,9 +520,11 @@ class MainActivity : ComponentActivity() {
                 ActiveSessionScreen(
                     durationText = durationText,
                     connectedUser = pairedEmail ?: "Web Dashboard (Paired)",
+                    isStreamConnected = (activeRemoteSessionId != null),
                     onTerminateSession = {
                         MediaProjectionService.stopService(this)
                         isMediaProjectionActive = false
+                        activeRemoteSessionId = null
                         currentScreen = Screen.PERMISSIONS
                         Toast.makeText(this, "Remote session terminated", Toast.LENGTH_SHORT).show()
                     }

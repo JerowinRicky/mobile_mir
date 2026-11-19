@@ -40,7 +40,7 @@ class WebRtcManager(
         private const val DATA_CHANNEL_LABEL = "input-channel"
     }
 
-    private val eglBase: EglBase by lazy { EglBase.create() }
+    private val eglBase: EglBase by lazy { EglBase.create(null, EglBase.CONFIG_RECORDABLE) }
     private var peerConnectionFactory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
     private var videoSource: VideoSource? = null
@@ -105,7 +105,9 @@ class WebRtcManager(
 
             Log.i(TAG, "Starting screen capture at ${width}x${height} @ ${fps}fps")
             screenCapturer?.startCapture(width, height, fps)
-            videoTrack = peerConnectionFactory?.createVideoTrack(VIDEO_TRACK_ID, videoSource)
+            videoTrack = peerConnectionFactory?.createVideoTrack(VIDEO_TRACK_ID, videoSource)?.apply {
+                setEnabled(true)
+            }
             Log.i(TAG, "Screen capturer and video track created successfully.")
             true
         } catch (e: Throwable) {
@@ -161,8 +163,9 @@ class WebRtcManager(
         })
 
         // Add local screen video track
-        videoTrack?.let {
-            peerConnection?.addTrack(it, listOf(STREAM_ID))
+        videoTrack?.let { track ->
+            track.setEnabled(true)
+            peerConnection?.addTrack(track, listOf(STREAM_ID))
         }
 
         // Setup local DataChannel for remote control inputs

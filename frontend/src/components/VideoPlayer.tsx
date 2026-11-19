@@ -19,9 +19,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ stream, onSendCommand,
   const startPosRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
   useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-    }
+    const video = videoRef.current;
+    if (!video || !stream) return;
+
+    video.srcObject = stream;
+
+    const playVideo = () => {
+      video.play().catch((err) => {
+        console.warn('[VideoPlayer] Play interrupted/prevented:', err);
+      });
+    };
+
+    video.onloadedmetadata = playVideo;
+    playVideo();
   }, [stream]);
 
   const toggleFullscreen = () => {

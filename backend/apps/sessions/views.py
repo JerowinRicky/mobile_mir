@@ -104,11 +104,11 @@ class ActiveDeviceSessionView(APIView):
         except Device.DoesNotExist:
             return Response({'detail': 'Invalid device token'}, status=status.HTTP_401_UNAUTHORIZED)
 
-        # Find any INITIALIZING or ACTIVE session for this device
+        # Find any INITIALIZING, CONNECTING, or ACTIVE session for this device
         session = RemoteSession.objects.filter(
             device=device,
-            status__in=[SessionStatus.INITIALIZING, SessionStatus.ACTIVE]
-        ).select_related('user').order_by('-created_at').first()
+            status__in=[SessionStatus.INITIALIZING, SessionStatus.CONNECTING, SessionStatus.ACTIVE]
+        ).select_related('user').order_by('-started_at').first()
 
         if not session:
             return Response({'has_active_session': False}, status=status.HTTP_200_OK)
